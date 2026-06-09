@@ -2,7 +2,7 @@ import pytest
 import polars as pl
 
 # Import settings and generator functions
-from configs.settings import DATA_VOLUMES
+from configs import settings
 from src.generator import (
     generate_brands,
     generate_categories,
@@ -14,8 +14,8 @@ from src.generator import (
 
 @pytest.fixture(scope="module")
 def sample_data():
-    """
-    Make all fake data one time only.
+    """Make all fake data one time only.
+    
     We share this data with all tests below to save time.
     """
     brands = generate_brands()
@@ -39,9 +39,9 @@ def sample_data():
 
 def test_row_counts(sample_data):
     """Check if the number of rows is exactly what we want."""
-    assert sample_data["brands"].height == DATA_VOLUMES["brand"]
-    assert sample_data["products"].height == DATA_VOLUMES["product"]
-    assert sample_data["sellers"].height == DATA_VOLUMES["seller"]
+    assert sample_data["brands"].height == settings.DATA_VOLUMES["brand"]
+    assert sample_data["products"].height == settings.DATA_VOLUMES["product"]
+    assert sample_data["sellers"].height == settings.DATA_VOLUMES["seller"]
 
 # --- TEST 2: DATA TYPES ---
 
@@ -55,8 +55,8 @@ def test_data_types(sample_data):
     assert schema["price"] == pl.Float64
     assert schema["is_active"] == pl.Boolean
     
-    # Check date type (must use microseconds and UTC timezone)
-    assert schema["created_at"] == pl.Datetime("us", "UTC")
+    # SỬA TẠI ĐÂY: Đồng bộ dùng settings.SYSTEM_TIMEZONE thay vì "UTC" để khớp main.py
+    assert schema["created_at"] == pl.Datetime("us", settings.SYSTEM_TIMEZONE)
 
 # --- TEST 3: BUSINESS RULES ---
 

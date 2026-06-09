@@ -3,17 +3,10 @@ import pytest
 import sqlalchemy
 from src.postgres_loader import get_db_uri
 
-# Initialize standard Python logger. 
-# The pytest.ini file will automatically capture these logs and route them to logs/integration_test.log.
 logger = logging.getLogger(__name__)
-
 
 @pytest.fixture(scope="module")
 def db_engine():
-    """
-    Setup fixture: Creates a database connection engine before any tests run.
-    Teardown fixture: Disposes the engine after all tests in this module finish.
-    """
     logger.info("Setting up database engine for integration tests...")
     db_uri = get_db_uri()
     engine = sqlalchemy.create_engine(db_uri)
@@ -21,11 +14,7 @@ def db_engine():
     logger.info("Tearing down database engine. Tests complete.")
     engine.dispose()
 
-
 def test_database_connection(db_engine):
-    """
-    Integration Test 1: Verify PostgreSQL connection connectivity.
-    """
     logger.info("Executing test_database_connection...")
     try:
         with db_engine.connect() as conn:
@@ -36,15 +25,12 @@ def test_database_connection(db_engine):
         logger.error(f"Database connection failed: {e}")
         pytest.fail(f"Database connection failed: {e}")
 
-
 def test_tables_have_data(db_engine):
-    """
-    Integration Test 2: Verify that all expected tables contain ingested records.
-    """
     logger.info("Executing test_tables_have_data...")
+    # SỬA TẠI ĐÂY: Đã đưa orders và order_items vào tầm ngắm kiểm tra dữ liệu thực tế
     expected_tables = [
         "brands", "categories", "sellers", "products", 
-        "promotions", "promotion_products"
+        "promotions", "promotion_products", "orders", "order_items"
     ]
     
     with db_engine.connect() as conn:
@@ -55,59 +41,36 @@ def test_tables_have_data(db_engine):
             logger.info(f"Table '{table}' row count: {row_count}")
             assert row_count > 0, f"Integration Error: The '{table}' table is completely empty!"
 
-
 def test_financial_logic_validity(db_engine):
-    """
-    Integration Test 3: Validate E-commerce business logic.
-    Ensures no product has a discount price strictly greater than its base price.
-    """
     logger.info("Executing test_financial_logic_validity...")
     query = sqlalchemy.text("""
         SELECT COUNT(*) 
         FROM products 
         WHERE discount_price > price;
     """)
-    
     with db_engine.connect() as conn:
         invalid_rows = conn.execute(query).scalar()
-        
         if invalid_rows > 0:
             logger.error(f"Found {invalid_rows} products violating financial constraints.")
-        
         assert invalid_rows == 0, f"Critical Error: Found {invalid_rows} products with discount_price > price!"
         logger.info("SUCCESS: All financial constraints are valid.")
 
-
 def test_referential_integrity_products(db_engine):
-    """
-    Integration Test 4: Validate Foreign Key integrity for the Products table.
-    Ensures all products map to existing brands, categories, and sellers.
-    """
     logger.info("Executing test_referential_integrity_products...")
-    
-    # Query checks if any product points to a brand_id that does not exist in the brands table
     query = sqlalchemy.text("""
         SELECT COUNT(*) 
         FROM products p
         LEFT JOIN brands b ON p.brand_id = b.brand_id
         WHERE b.brand_id IS NULL;
     """)
-    
     with db_engine.connect() as conn:
         orphan_rows = conn.execute(query).scalar()
-        
         if orphan_rows > 0:
             logger.error(f"Found {orphan_rows} orphan products.")
-            
         assert orphan_rows == 0, f"Data Integrity Error: Found {orphan_rows} orphan products missing valid foreign keys!"
         logger.info("SUCCESS: No orphan records found in products table.")
 
-
 def test_no_duplicate_records(db_engine):
-    """
-    Integration Test 5: Verify Idempotency and Primary Key uniqueness.
-    Ensures the TRUNCATE CASCADE executed successfully before ingestion.
-    """
     logger.info("Executing test_no_duplicate_records...")
     query = sqlalchemy.text("""
         SELECT COUNT(*) 
@@ -118,33 +81,22 @@ def test_no_duplicate_records(db_engine):
             HAVING COUNT(*) > 1
         ) as duplicates;
     """)
-    
     with db_engine.connect() as conn:
         duplicate_rows = conn.execute(query).scalar()
-        
         if duplicate_rows > 0:
             logger.error(f"Found {duplicate_rows} duplicated product IDs.")
-            
         assert duplicate_rows == 0, f"Idempotency Error: Found {duplicate_rows} duplicate product_ids!"
         logger.info("SUCCESS: Idempotency confirmed. No duplicates found.")
 
-
 def test_schema_data_types(db_engine):
-    """
-    Integration Test 6: Validate physical database schema constraints.
-    Ensures Docker successfully created the 'price' column as a NUMERIC/DECIMAL type,
-    verifying alignment with in-memory Data Contracts.
-    """
     logger.info("Executing test_schema_data_types...")
     query = sqlalchemy.text("""
         SELECT data_type 
         FROM information_schema.columns 
         WHERE table_name = 'products' AND column_name = 'price';
     """)
-    
     with db_engine.connect() as conn:
         result = conn.execute(query).scalar()
-        
         logger.info(f"Physical data type for 'products.price' is: {result}")
         assert result.upper() == "NUMERIC", f"Schema Error: 'price' column should be NUMERIC, but found {result}."
         logger.info("SUCCESS: Physical database schema aligns with Data Contracts.")

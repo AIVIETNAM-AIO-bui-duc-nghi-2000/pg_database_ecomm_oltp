@@ -3,7 +3,9 @@
 ## Project Overview
 This repository contains an end-to-end, high-performance Data Engineering pipeline designed to generate, process, and ingest relational synthetic data into an E-commerce PostgreSQL database. 
 
-Built on 2026 industry standards, the architecture entirely bypasses legacy processing frameworks like Pandas. It leverages Polars for multi-threaded, in-memory data generation and ADBC (Arrow Database Connectivity) for high-speed, zero-copy binary ingestion into the OLTP system.
+Built on industry standards, the architecture entirely bypasses legacy processing frameworks like Pandas. It leverages Polars for multi-threaded, in-memory data generation and ADBC (Arrow Database Connectivity) for high-speed, zero-copy binary ingestion into the OLTP system. 
+
+The generated data strictly mirrors real-world e-commerce behaviors, including Google Merchant Center product naming conventions and Southeast Asian shopping traffic patterns.
 
 ## Business Value & Use Case
 In the hyper-competitive global E-commerce market—especially during high-traffic events like Black Friday globally or Mega Flash Sales in Vietnam (e.g., Shopee, TikTok Shop)—a single data anomaly can cost a business billions. 
@@ -17,8 +19,8 @@ This pipeline serves as a **production-grade sandbox**. It provides a highly rea
 The pipeline strictly follows a 4-stage execution flow to guarantee data integrity and idempotency:
 
 1.  **Define the Schema:** The database architecture and table constraints are initialized automatically via Docker using standard DDL scripts.
-2.  **Generate Data:** Realistic mock data is synthesized in memory using Python `Faker` and `Polars` DataFrames across 6 normalized tables.
-3.  **Convert Data Types:** Explicit type casting is applied in-memory (e.g., casting floating-point financial values to String, then to `DECIMAL(15,2)`). This ensures strict compliance with the target database schema and prevents precision loss during binary transfer.
+2.  **Generate Data:** Realistic mock data is synthesized in memory using Python `Faker` and `Polars` DataFrames across 8 normalized tables. This includes generating globally unique identifiers (UUID v4) for transactions and simulating realistic human shopping times (e.g., Mega Sales, paydays, and nighttime traffic spikes).
+3.  **Convert Data Types:** Explicit type casting is applied in-memory (e.g., keeping specific IDs as 10-digit Strings, and casting floating-point financial values to String, then to `DECIMAL(15,2)`). This ensures strict compliance with the target database schema and prevents precision loss during binary transfer.
 4.  **Insert Data:** Data is ingested directly into PostgreSQL using the ADBC driver, utilizing `TRUNCATE CASCADE` beforehand to ensure idempotent runs without data duplication.
 
 ## Architecture & Tech Stack
@@ -40,14 +42,16 @@ To ensure the pipeline is robust and CI/CD-ready, it employs a two-layer testing
 * **Automated Logging:** Driven by `pytest.ini`, all test executions automatically generate human-readable `.log` files and CI/CD-compatible `.xml` reports in the `logs/` directory.
 
 ## Database Schema & Data Dictionary
-The pipeline populates a normalized relational model. Below is the core data dictionary:
+The pipeline populates a normalized relational model consisting of 8 tables. Below is the core data dictionary:
 
 * **brands:** `brand_id` (PK), `brand_name`, `country`, `created_at`
-* **categories:** `category_id` (PK), `category_name`, `created_at`
-* **sellers:** `seller_id` (PK), `seller_name`, `email`, `created_at`
-* **products:** `product_id` (PK), `name`, `price` (Decimal), `discount_price` (Decimal), `brand_id` (FK), `category_id` (FK), `seller_id` (FK)
-* **promotions:** `promotion_id` (PK), `name`, `discount_value` (Decimal), `start_date`, `end_date`
-* **promotion_products:** `promotion_id` (FK), `product_id` (FK)
+* **categories:** `category_id` (PK), `category_name`, `parent_category_id`, `level`, `created_at`
+* **sellers:** `seller_id` (VARCHAR(10) PK), `seller_name`, `join_date`, `seller_type`, `rating`, `country`
+* **products:** `product_id` (VARCHAR(10) PK), `product_name` (Google Merchant Center Standard), `category_id` (FK), `brand_id` (FK), `seller_id` (FK), `price` (Decimal), `discount_price` (Decimal), `stock_qty`, `rating`, `created_at`, `is_active`
+* **promotions:** `promotion_id` (PK), `promotion_name`, `promotion_type`, `discount_type`, `discount_value` (Decimal), `start_date`, `end_date`
+* **promotion_products:** `promo_product_id` (PK), `promotion_id` (FK), `product_id` (FK), `created_at`
+* **orders:** `order_id` (UUID v4 PK), `order_date`, `seller_id` (FK), `status`, `total_amount` (Decimal), `created_at` (Simulated Human Behavior Timestamp)
+* **order_items:** `order_item_id` (UUID v4 PK), `order_id` (FK), `product_id` (FK), `order_date`, `quantity`, `unit_price` (Decimal), `subtotal` (Decimal), `created_at`
 
 ## Quick Start Guide
 
@@ -116,7 +120,7 @@ PG_DATABASE_ECOMM_OLTP/
 │   ├── integration/
 │   │   └── test_db_integration.py  # DB integrity and business logic tests
 │   └── unit/
-│       └── test_data_contracts.py  # In-memory schema validation
+│   │   └── test_data_contracts.py  # In-memory schema validation
 ├── .env.example                    # Template for environment variables
 ├── .gitignore                      # Standardized version control exclusions
 ├── docker-compose.yml              # Infrastructure state definition
@@ -126,3 +130,4 @@ PG_DATABASE_ECOMM_OLTP/
 ├── pyproject.toml                  # Project metadata and requirements
 ├── pytest.ini                      # Automated test logging configuration
 └── README.md                       # Project documentation and setup guide
+```

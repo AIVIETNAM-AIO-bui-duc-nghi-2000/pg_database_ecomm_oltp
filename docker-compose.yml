@@ -1,22 +1,36 @@
 services:
   postgres:
+    # Use a small and fast version of Postgres 16
     image: postgres:16-alpine
     container_name: ecomm_postgres
+    # Start this database automatically if it crashes
     restart: unless-stopped
 
     environment:
+      # Get login details from the .env file for security
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
 
     ports:
+      # Connect the database inside Docker to your local computer
       - "${POSTGRES_PORT:-5432}:5432"
 
     volumes:
+      # Save data safely so we do not lose it when Docker stops
       - postgres_data:/var/lib/postgresql/data
+      # Run these SQL files ONLY ONE TIME when creating a new database
       - ./init_scripts:/docker-entrypoint-initdb.d
 
+    deploy:
+      resources:
+        limits:
+          # Limit CPU and RAM so this database does not freeze the computer
+          cpus: '2.0'
+          memory: 4G
+
     healthcheck:
+      # Check if the database is fully ready to work
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 10s
       timeout: 5s
